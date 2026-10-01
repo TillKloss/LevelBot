@@ -48,6 +48,16 @@ class Administrativ(commands.Cog):
                 ),
                 ephemeral=True)
 
+            elif check.values[0] == "commands":
+                await interaction.send(embed=nextcord.Embed(
+                    title="Commands",
+                    color=color.COLOR_BLUE,
+                    timestamp=datetime.now(UTC),
+                )
+                .add_field(name="/help", value="shows all commands", inline=True)
+                # TODO: add new commands
+                )
+
 
         check.callback = callback
         check_view = View(timeout=None)
