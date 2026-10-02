@@ -2,7 +2,7 @@ import asyncio
 import os
 import nextcord
 from nextcord.ext import commands
-from dotenv import load_dotenv
+from utils import load_env
 
 intents = nextcord.Intents.all()
 client = commands.Bot(command_prefix="$", intents=intents)
@@ -27,5 +27,4 @@ if __name__ == "__main__":
         if filename.endswith(".py"):
             client.load_extension(f"cogs.{filename[:-3]}")
 
-    load_dotenv("private/.env")
-    client.run(os.getenv("TOKEN"))
+    client.run(load_env.TOKEN)
