@@ -1,7 +1,9 @@
 import os
+from pathlib import Path
+
 from dotenv import load_dotenv
 
-load_dotenv("../private/.env")
+load_dotenv(Path(__file__).resolve().parent.parent / "private" / ".env")
 
 TOKEN = os.getenv("TOKEN")
 DB_HOST = os.getenv("DB_HOST")
