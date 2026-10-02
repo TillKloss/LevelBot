@@ -5,6 +5,8 @@
 ![MySQL](https://img.shields.io/badge/MySQL-8.4-orange?style=for-the-badge)
 ![Discord](https://img.shields.io/badge/Discord-Leveling_Bot-5865F2?style=for-the-badge)
 
+(AI-Cleanup)
+
 Mit **LevelBot** sammelst du beim Schreiben auf deinem Discord-Server XP und steigst im Level auf. Mit `/rank` kannst du deinen Fortschritt checken.
 
 ---
