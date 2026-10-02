@@ -74,3 +74,15 @@ async def close_pool() -> None:
             raise
         finally:
             _pool = None
+
+
+async def initialize_xp_storage() -> None:
+    async with get_connection() as connection:
+        async with connection.cursor() as cursor:
+            await cursor.execute(
+                "CREATE TABLE IF NOT EXISTS `xp_batch_writers` ("
+                "`writer_id` CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, "
+                "`sequence` BIGINT UNSIGNED NOT NULL DEFAULT 0, "
+                "PRIMARY KEY (`writer_id`)"
+                ") ENGINE=InnoDB"
+            )
