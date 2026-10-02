@@ -1,31 +1,41 @@
 import asyncio
 import os
+import signal
+from contextlib import suppress
 import nextcord
 from nextcord.ext import commands
+from database.xp import xp
 from utils import load_env
 
-intents = nextcord.Intents.all()
-client = commands.Bot(command_prefix="$", intents=intents)
 
+async def main():
+    intents = nextcord.Intents.all()
+    client = commands.Bot(command_prefix="$", intents=intents)
 
-guild_ids = []
-
-
-@client.event
-async def on_ready():
-    print("rdy")
-    client.loop.create_task(status_task())
-    for guild in client.guilds:
-        guild_ids.append(guild.id)
-
-
-async def status_task():
+    @client.event
+    async def on_ready():
+        print("rdy")
         await client.change_presence(status=nextcord.Status.online, activity=nextcord.Game("Leveling..."))
+
+    loop = asyncio.get_running_loop()
+    main_task = asyncio.current_task()
+    with suppress(NotImplementedError):
+        loop.add_signal_handler(signal.SIGTERM, main_task.cancel)
+
+    try:
+        for filename in os.listdir(os.path.join(os.path.dirname(__file__), "cogs")):
+            if filename.endswith(".py"):
+                client.load_extension(f"cogs.{filename[:-3]}")
+
+        await xp.start()
+        await client.start(load_env.TOKEN)
+    finally:
+        try:
+            await client.close()
+        finally:
+            await xp.close()
 
 
 if __name__ == "__main__":
-    for filename in os.listdir("./cogs"):
-        if filename.endswith(".py"):
-            client.load_extension(f"cogs.{filename[:-3]}")
-
-    client.run(load_env.TOKEN)
+    with suppress(KeyboardInterrupt, asyncio.CancelledError):
+        asyncio.run(main())
