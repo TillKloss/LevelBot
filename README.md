@@ -1,5 +1,8 @@
 # LevelBot (Discord)
 
+![Python](https://img.shields.io/badge/Python-3.12%2B-blue?style=for-the-badge)
+![Nextcord](https://img.shields.io/badge/Nextcord-3.2.0-5865F2?style=for-the-badge)
+![MySQL](https://img.shields.io/badge/MySQL-8.4-orange?style=for-the-badge)
 ![Discord](https://img.shields.io/badge/Discord-Leveling_Bot-5865F2?style=for-the-badge)
 
 Mit **LevelBot** sammelst du beim Schreiben auf deinem Discord-Server XP und steigst im Level auf. Mit `/rank` kannst du deinen Fortschritt checken.
