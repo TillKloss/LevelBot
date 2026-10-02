@@ -5,9 +5,9 @@ from dataclasses import dataclass
 from uuid import uuid4
 
 from .connection import close_pool, initialize_xp_storage
-from .user import _get_xp_state, _save_xp_batch, calculate_level
+from . import user
 
-_logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -33,17 +33,12 @@ class XPBuffer:
         self._writer_id = uuid4().hex
         self._sequence = 0
         self._pending: dict[tuple[int, int], int] = {}
-        self._inflight: dict[tuple[int, int], int] | None = None
+        self._batch: dict[tuple[int, int], int] | None = None
         self._flush_lock = asyncio.Lock()
         self._lifecycle_lock = asyncio.Lock()
         self._stop = asyncio.Event()
         self._task: asyncio.Task | None = None
         self._accepting = False
-        self._last_error: Exception | None = None
-
-    @property
-    def last_error(self) -> Exception | None:
-        return self._last_error
 
     async def start(self) -> None:
         async with self._lifecycle_lock:
@@ -66,18 +61,18 @@ class XPBuffer:
     async def get_xp(self, guild_id: int, user_id: int) -> int:
         _validate_ids(guild_id, user_id)
         async with self._flush_lock:
-            stored, saved_sequence = await _get_xp_state(
+            stored, saved_sequence = await user.get_xp_state(
                 guild_id, user_id, self._writer_id
             )
             key = (guild_id, user_id)
             total = stored + self._pending.get(key, 0)
-            if self._inflight is not None and saved_sequence < self._sequence + 1:
-                total += self._inflight.get(key, 0)
+            if self._batch is not None and saved_sequence < self._sequence + 1:
+                total += self._batch.get(key, 0)
             return total
 
     async def get_progress(self, guild_id: int, user_id: int) -> XPProgress:
         total = await self.get_xp(guild_id, user_id)
-        level = calculate_level(total)
+        level = user.calculate_level(total)
         xp_in_level = total - 50 * level * (level - 1)
         xp_required = 100 * level
         return XPProgress(
@@ -88,27 +83,21 @@ class XPBuffer:
             xp_to_next_level=xp_required - xp_in_level,
         )
 
-    async def _save_inflight(self) -> None:
-        if self._inflight is None:
+    async def _save_batch(self) -> None:
+        if self._batch is None:
             return
-        await _save_xp_batch(
-            self._writer_id, self._sequence + 1, self._inflight
+        await user.save_xp_batch(
+            self._writer_id, self._sequence + 1, self._batch
         )
         self._sequence += 1
-        self._inflight = None
+        self._batch = None
 
     async def flush(self) -> None:
         async with self._flush_lock:
-            try:
-                await self._save_inflight()
-                if self._pending:
-                    self._inflight, self._pending = self._pending, {}
-                    await self._save_inflight()
-            except Exception as exc:
-                self._last_error = exc
-                raise
-            else:
-                self._last_error = None
+            await self._save_batch()
+            if self._pending:
+                self._batch, self._pending = self._pending, {}
+                await self._save_batch()
 
     async def _run(self) -> None:
         while not self._stop.is_set():
@@ -118,8 +107,8 @@ class XPBuffer:
                 try:
                     await self.flush()
                 except Exception as exc:
-                    _logger.error(
-                        "XP flush failed (%s); retaining the batch for retry.",
+                    logger.error(
+                        "Couldn't save XP (%s). Will retry on the next flush.",
                         type(exc).__name__,
                     )
 

@@ -12,14 +12,14 @@ _pool_lock = asyncio.Lock()
 
 def _connection_options() -> dict:
     required = ("DB_HOST", "DB_USER", "DB_NAME")
-    missing = [key for key in required if not getattr(load_env, key, None)]
-    if getattr(load_env, "DB_PASSWORD", None) is None:
+    missing = [key for key in required if not getattr(load_env, key)]
+    if load_env.DB_PASSWORD is None:
         missing.append("DB_PASSWORD")
     if missing:
         raise ValueError("Missing database settings: " + ", ".join(missing))
 
     try:
-        port = int(getattr(load_env, "DB_PORT", None) or 3306)
+        port = int(load_env.DB_PORT or 3306)
     except (TypeError, ValueError):
         raise ValueError("DB_PORT must be an integer between 1 and 65535.") from None
     if not 1 <= port <= 65535:
@@ -79,10 +79,10 @@ async def close_pool() -> None:
 async def initialize_xp_storage() -> None:
     async with get_connection() as connection:
         async with connection.cursor() as cursor:
-            await cursor.execute(
-                "CREATE TABLE IF NOT EXISTS `xp_batch_writers` ("
-                "`writer_id` CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, "
-                "`sequence` BIGINT UNSIGNED NOT NULL DEFAULT 0, "
-                "PRIMARY KEY (`writer_id`)"
-                ") ENGINE=InnoDB"
-            )
+            await cursor.execute("""
+                CREATE TABLE IF NOT EXISTS xp_batch_writers (
+                    writer_id CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+                    sequence BIGINT UNSIGNED NOT NULL DEFAULT 0,
+                    PRIMARY KEY (writer_id)
+                ) ENGINE=InnoDB
+            """)

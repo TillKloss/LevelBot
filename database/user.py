@@ -10,16 +10,16 @@ def calculate_level(total_xp: int) -> int:
 
 
 async def get_all_user_ids(guild_id: int | None = None) -> list[int]:
-    query = "SELECT DISTINCT `user_id` FROM `users`"
-    parameters: tuple[int, ...] = ()
+    query = "SELECT DISTINCT user_id FROM users"
+    params = ()
     if guild_id is not None:
-        query += " WHERE `guild_id` = %s"
-        parameters = (guild_id,)
-    query += " ORDER BY `user_id`"
+        query += " WHERE guild_id = %s"
+        params = (guild_id,)
+    query += " ORDER BY user_id"
 
     async with get_connection() as connection:
         async with connection.cursor() as cursor:
-            await cursor.execute(query, parameters)
+            await cursor.execute(query, params)
             rows = await cursor.fetchall()
     return [row[0] for row in rows]
 
@@ -27,32 +27,31 @@ async def get_all_user_ids(guild_id: int | None = None) -> list[int]:
 async def get_user_xp(guild_id: int, user_id: int) -> int:
     async with get_connection() as connection:
         async with connection.cursor() as cursor:
-            await cursor.execute(
-                "SELECT COALESCE(`xp`, 0) FROM `users` "
-                "WHERE `guild_id` = %s AND `user_id` = %s",
-                (guild_id, user_id),
-            )
+            await cursor.execute("""
+                SELECT COALESCE(xp, 0) FROM users
+                WHERE guild_id = %s AND user_id = %s
+            """, (guild_id, user_id))
             row = await cursor.fetchone()
     return row[0] if row else 0
 
 
-async def _get_xp_state(
+async def get_xp_state(
     guild_id: int, user_id: int, writer_id: str
 ) -> tuple[int, int]:
     async with get_connection() as connection:
         async with connection.cursor() as cursor:
-            await cursor.execute(
-                "SELECT COALESCE((SELECT `xp` FROM `users` "
-                "WHERE `guild_id` = %s AND `user_id` = %s), 0), "
-                "COALESCE((SELECT `sequence` FROM `xp_batch_writers` "
-                "WHERE `writer_id` = %s), 0)",
-                (guild_id, user_id, writer_id),
-            )
+            await cursor.execute("""
+                SELECT
+                    COALESCE((SELECT xp FROM users
+                              WHERE guild_id = %s AND user_id = %s), 0),
+                    COALESCE((SELECT sequence FROM xp_batch_writers
+                              WHERE writer_id = %s), 0)
+            """, (guild_id, user_id, writer_id))
             row = await cursor.fetchone()
     return row[0], row[1]
 
 
-async def _save_xp_batch(
+async def save_xp_batch(
     writer_id: str,
     sequence: int,
     rewards: dict[tuple[int, int], int],
@@ -61,16 +60,15 @@ async def _save_xp_batch(
         try:
             await connection.begin()
             async with connection.cursor() as cursor:
-                await cursor.execute(
-                    "INSERT INTO `xp_batch_writers` (`writer_id`, `sequence`) "
-                    "VALUES (%s, 0) ON DUPLICATE KEY UPDATE `sequence` = `sequence`",
-                    (writer_id,),
-                )
-                await cursor.execute(
-                    "SELECT `sequence` FROM `xp_batch_writers` "
-                    "WHERE `writer_id` = %s FOR UPDATE",
-                    (writer_id,),
-                )
+                await cursor.execute("""
+                    INSERT INTO xp_batch_writers (writer_id, sequence)
+                    VALUES (%s, 0)
+                    ON DUPLICATE KEY UPDATE sequence = sequence
+                """, (writer_id,))
+                await cursor.execute("""
+                    SELECT sequence FROM xp_batch_writers
+                    WHERE writer_id = %s FOR UPDATE
+                """, (writer_id,))
                 saved_sequence = (await cursor.fetchone())[0]
                 if saved_sequence >= sequence:
                     await connection.rollback()
@@ -82,25 +80,24 @@ async def _save_xp_batch(
                 for offset in range(0, len(rows), 500):
                     chunk = rows[offset:offset + 500]
                     placeholders = ", ".join(["(%s, %s, %s, %s)"] * len(chunk))
-                    parameters = tuple(
-                        value
-                        for (guild_id, user_id), amount in chunk
-                        for value in (guild_id, user_id, amount, calculate_level(amount))
-                    )
-                    await cursor.execute(
-                        "INSERT INTO `users` (`guild_id`, `user_id`, `xp`, `level`) "
-                        "VALUES " + placeholders + " AS incoming "
-                        "ON DUPLICATE KEY UPDATE "
-                        "`level` = FLOOR((1 + SQRT(1 + "
-                        "8 * (COALESCE(`users`.`xp`, 0) + incoming.`xp`) / 100)) / 2), "
-                        "`xp` = COALESCE(`users`.`xp`, 0) + incoming.`xp`",
-                        parameters,
-                    )
-                await cursor.execute(
-                    "UPDATE `xp_batch_writers` SET `sequence` = %s "
-                    "WHERE `writer_id` = %s",
-                    (sequence, writer_id),
-                )
+                    params = []
+                    for (guild_id, user_id), amount in chunk:
+                        params.extend((guild_id, user_id, amount, calculate_level(amount)))
+
+                    query = f"""
+                        INSERT INTO users (guild_id, user_id, xp, level)
+                        VALUES {placeholders} AS incoming
+                        ON DUPLICATE KEY UPDATE
+                            level = FLOOR((1 + SQRT(1 +
+                                8 * (COALESCE(users.xp, 0) + incoming.xp) / 100)) / 2),
+                            xp = COALESCE(users.xp, 0) + incoming.xp
+                    """
+                    await cursor.execute(query, params)
+
+                await cursor.execute("""
+                    UPDATE xp_batch_writers SET sequence = %s
+                    WHERE writer_id = %s
+                """, (sequence, writer_id))
             await connection.commit()
         except BaseException:
             connection.close()

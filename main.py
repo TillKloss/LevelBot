@@ -1,16 +1,18 @@
 import asyncio
-import os
 import signal
 from contextlib import suppress
+from pathlib import Path
+
 import nextcord
 from nextcord.ext import commands
+
 from database.xp import xp
 from utils import load_env
 
 
 async def main():
     intents = nextcord.Intents.all()
-    client = commands.Bot(command_prefix="$", intents=intents)
+    client = commands.Bot(command_prefix="$", intents=intents, help_command=None)
 
     @client.event
     async def on_ready():
@@ -23,9 +25,8 @@ async def main():
         loop.add_signal_handler(signal.SIGTERM, main_task.cancel)
 
     try:
-        for filename in os.listdir(os.path.join(os.path.dirname(__file__), "cogs")):
-            if filename.endswith(".py"):
-                client.load_extension(f"cogs.{filename[:-3]}")
+        for file in Path(__file__).with_name("cogs").glob("*.py"):
+            client.load_extension(f"cogs.{file.stem}")
 
         await xp.start()
         await client.start(load_env.TOKEN)
