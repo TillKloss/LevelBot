@@ -1,6 +1,5 @@
 import nextcord
 from nextcord.ext import commands
-from main import guild_ids
 from nextcord.ui import Select, View
 from messages import errors
 from utils import color
@@ -11,7 +10,7 @@ class Administrativ(commands.Cog):
     def __init__(self, client):
         self.client = client
 
-    @nextcord.slash_command(name="help", description="shows all commands", guild_ids=guild_ids)
+    @nextcord.slash_command(name="help", description="shows all commands")
     async def help(self, interaction:nextcord.Interaction):
         check = Select(placeholder="What do you need help with?",
                        custom_id="help_select",
@@ -28,9 +27,9 @@ class Administrativ(commands.Cog):
                            )
                        ])
 
-        async def callback(interaction:nextcord.Interaction):
-            main_interaction = interaction
+        main_interaction = interaction
 
+        async def callback(interaction:nextcord.Interaction):
             if interaction.user.id != main_interaction.user.id:
                 await interaction.send(embed=errors.EMBED_NOT_YOUR_MENU, ephemeral=True)
                 return
@@ -55,8 +54,8 @@ class Administrativ(commands.Cog):
                     timestamp=datetime.now(UTC),
                 )
                 .add_field(name="/help", value="shows all commands", inline=True)
-                # TODO: add new commands
-                )
+                .add_field(name="/rank", value="shows your level and XP or those of another member", inline=True)
+                ,ephemeral=True)
 
 
         check.callback = callback
