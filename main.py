@@ -13,6 +13,7 @@ guild_ids = []
 
 @client.event
 async def on_ready():
+    print("rdy")
     client.loop.create_task(status_task())
     for guild in client.guilds:
         guild_ids.append(guild.id)
